@@ -1,14 +1,68 @@
-from collections import namedtuple
 import numpy as np
 
-Move = namedtuple('Move', 'color, x, y, special, number')
 
-B = 1
-W = 2
+class Move:
+
+    B = 1
+    W = 2
+
+    SWAP_PIECES = 1
+    SWAP_SIDES = 2
+    RESIGN = 3
+    FORFEIT = 4
+
+    SPECIAL = {
+        'swap-pieces': SWAP_PIECES,
+        'swap-sides': SWAP_SIDES,
+        'resign': RESIGN,
+        'forfeit': FORFEIT,
+    }
+
+    def __init__(self, data):
+        self.data = data
+
+    @classmethod
+    def make_move(cls, c, n, x, y, spec=0):
+        if isinstance(c, str):
+            c = color(c)
+        if isinstance(spec, str):
+            spec = cls.SPECIAL[spec]
+        return cls([c, n, x, y, spec])
+
+    @classmethod
+    def make_special_move(cls, c, n, spec):
+        return cls.make_move(c, n, 0, 0, spec)
+
+    def swap(self):
+        return Move([opposite_color(self.color), self.n, self.y, self.x, self.special])
+
+    def rotate(self, board_size):
+        bs = board_size - 1
+        return Move([self.color, self.n, bs - self.y, bs - self.x, self.special])
+
+    @property
+    def color(self):
+        return self.data[0]
+
+    @property
+    def n(self):
+        return self.data[1]
+
+    @property
+    def x(self):
+        return self.data[2]
+
+    @property
+    def y(self):
+        return self.data[3]
+
+    @property
+    def special(self):
+        return self.data[4]
 
 
 def color(c):
-    return B if c.upper() == 'B' else W
+    return Move.B if c.upper() == 'B' else Move.W
 
 
 @np.vectorize
@@ -28,7 +82,7 @@ class Board:
         :param size:
         :return:
         """
-        return cls(np.zeros([size, size, 2], np.int8))
+        return cls(np.zeros([size, size, 2], np.bool_))
 
     def place_move(self, move):
         """
@@ -37,7 +91,7 @@ class Board:
         :return:
         """
         if move.special == 'swap-pieces':
-            return self.flip()
+            return self.swap()
         b = Board(np.copy(self.data))
         idx = np.ravel_multi_index(
             [[move.x, move.x], [move.y, move.y], [0, 1]],
@@ -46,7 +100,7 @@ class Board:
         np.put(b.data, idx, [move.color, move.number])
         return b
 
-    def flip(self):
+    def swap(self):
         """
         Flips the board along long diagonal and changes colors of all pieces
         :return: New board with flipped position
@@ -72,7 +126,7 @@ class Board:
 class Game:
 
     def __init__(self, size):
-        self.next_color = B
+        self.next_color = Move.B
         self.size = size
         self.moves = []
         self.player_black = ''
@@ -97,7 +151,7 @@ class Game:
     def play_swap_pieces(self):
         # TODO: check if move #2
         self.moves.append(Move(self.next_color, None, None, 'swap-pieces'))
-        self.board = self.board.flip()
+        self.board = self.board.swap()
         self.next_color = opposite_color(self.next_color)
 
     def play_swap_sides(self):

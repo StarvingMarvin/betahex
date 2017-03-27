@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from betahex.game import Board, B, W
+from betahex.game import Board, Move
 
 
 class Policy:
@@ -29,9 +29,9 @@ class Policy:
             prev = normal[-1]
             cur = prev.place_move(m)
             normal.append(cur)
-            flip.append(cur.flip())
+            flip.append(cur.swap())
             rot.append(cur.rotate())
-            rot_flip.append(cur.flip().rotate())
+            rot_flip.append(cur.swap().rotate())
         return normal, flip, rot, rot_flip
 
     def black_edge(self, x, y):
@@ -67,8 +67,8 @@ class Policy:
             for (y, field) in enumerate(row):
                 fx = 2 + x + y // 2
                 fy = 2 + y
-                black[fx][fy] = field[0] == B
-                white[fx][fy] = field[0] == W
+                black[fx][fy] = field[0] == Move.B
+                white[fx][fy] = field[0] == Move.W
                 empty[fx][fy] = field[0] == 0
 
         return np.dstack([black, white, empty, ones, black_edges, white_edges])

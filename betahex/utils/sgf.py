@@ -1,5 +1,5 @@
 import re
-from betahex.game import Move, color
+from betahex.game import Move
 
 move_re = re.compile(r'([bwBW])\[((([a-zA-Z])([1-9][0-9]?))|(swap-pieces))\]')
 
@@ -21,7 +21,7 @@ def parse_sgf(sgf_string):
                 x = ord(m.group(4).upper()) - ord('A')
             if y:
                 y = int(m.group(5)) - 1
-            moves.append(Move(color(c), x, y, special, n))
+            moves.append(Move.make_move(c, n, x, y, special))
             n += 1
 
     return moves
