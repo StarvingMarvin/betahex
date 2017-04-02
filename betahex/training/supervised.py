@@ -1,12 +1,13 @@
-import os
 import tensorflow as tf
+from os.path import join, dirname
 
+from betahex.game import moves2boards
 from betahex.utils.sgf import read_sgf
 from betahex.models.policy import Policy
 
 p = Policy(13)
-moves = read_sgf('data/sgfs/train/1000211.sgf')
-boards = p.moves2boards(moves)
+moves = read_sgf(join(dirname(__file__), '../test/data/1000211.sgf'))
+boards = moves2boards(13, moves)
 f = p.board2features(boards[0][10])
 
 model = p.model()

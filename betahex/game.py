@@ -60,6 +60,15 @@ class Move:
     def special(self):
         return self.data[4]
 
+    def __repr__(self):
+        return "Move({}, {}, {}, {}, {})".format(
+            'B' if self.color == Move.B else 'W',
+            self.n,
+            self.x,
+            self.y,
+            'swap' if self.special else None
+        )
+
 
 def color(c):
     return Move.B if c.upper() == 'B' else Move.W
@@ -82,7 +91,7 @@ class Board:
         :param size:
         :return:
         """
-        return cls(np.zeros([size, size, 2], np.bool_))
+        return cls(np.zeros([size, size, 2], np.int8))
 
     def place_move(self, move):
         """
@@ -90,14 +99,15 @@ class Board:
         :param move:
         :return:
         """
-        if move.special == 'swap-pieces':
+        if move.special == Move.SWAP_PIECES:
             return self.swap()
+        shape = np.shape(self.data)
         b = Board(np.copy(self.data))
         idx = np.ravel_multi_index(
             [[move.x, move.x], [move.y, move.y], [0, 1]],
-            np.shape(self.data)
+            shape
         )
-        np.put(b.data, idx, [move.color, move.number])
+        np.put(b.data, idx, [move.color, move.n])
         return b
 
     def swap(self):
@@ -105,8 +115,8 @@ class Board:
         Flips the board along long diagonal and changes colors of all pieces
         :return: New board with flipped position
         """
-        colors, other = np.dsplit(self.data, [1])
-        color_swapped = np.dstack([opposite_color(colors), other])
+        colors = self.data[:, :, 0]
+        color_swapped = np.dstack([opposite_color(colors), self.data[:, :, 1:]])
         swapped = np.swapaxes(color_swapped, 0, 1)
 
         return Board(swapped)
@@ -117,6 +127,15 @@ class Board:
         :return: New board with rotated position
         """
         return Board(np.fliplr(np.flipud(self.data)))
+
+    def colors(self):
+        return self.data[:, :, 0]
+
+    def move_numbers(self):
+        return self.data[:, :, 1]
+
+    def shape(self):
+        return np.shape(self.data)[:2]
 
     def __repr__(self):
         return '\n'.join(' ' * i + ' '.join(['.', 'X', 'O'][field[0]] for field in row)
@@ -159,3 +178,22 @@ class Game:
         self.player_black, self.player_white = self.player_white, self.player_black
         self.rank_black, self.rank_white = self.rank_white, self.rank_black
         self.moves.append(Move(self.next_color, None, None, 'swap-sides'))
+
+
+def moves2boards(board_size, moves):
+    normal = [Board.make_of_size(board_size)]
+    flip = [Board.make_of_size(board_size)]
+    rot = [Board.make_of_size(board_size)]
+    rot_flip = [Board.make_of_size(board_size)]
+    for m in moves:
+        if m.special == Move.SWAP_PIECES:
+            normal, flip = flip, normal
+            rot, rot_flip = rot_flip, rot
+            continue
+        prev = normal[-1]
+        cur = prev.place_move(m)
+        normal.append(cur)
+        flip.append(cur.swap())
+        rot.append(cur.rotate())
+        rot_flip.append(cur.swap().rotate())
+    return normal, flip, rot, rot_flip

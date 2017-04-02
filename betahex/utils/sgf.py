@@ -12,7 +12,7 @@ def read_sgf(sgf_path):
 def parse_sgf(sgf_string):
     moves = []
     chunks = sgf_string.split(';')
-    n = 0
+    n = 1
     for chunk in chunks:
         m = move_re.match(chunk)
         if m:
