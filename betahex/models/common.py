@@ -17,7 +17,7 @@ class CommonModel:
 
         self.x = tf.placeholder(
             tf.float16,
-            [None, features.shape[0], features.shape[1], features.count],
+            [None, features.shape[0], features.shape[1], features.depth],
             'x'
         )
 
@@ -29,7 +29,7 @@ class CommonModel:
 
     def get(self):
         h1_size = self.layer_dim_5
-        W1 = tf.Variable(tf.random_normal([5, 5, self.features.count, h1_size], dtype=tf.float16), dtype=tf.float16)
+        W1 = tf.Variable(tf.random_normal([5, 5, self.features.depth, h1_size], dtype=tf.float16), dtype=tf.float16)
         b1 = tf.Variable(tf.random_normal([h1_size], dtype=tf.float16), dtype=tf.float16)
         padded = tf.pad(self.x, [[0, 0], [2, 2], [2, 2], [0, 0]], "CONSTANT")
         prev = conv_layer(padded, W1, b1)
