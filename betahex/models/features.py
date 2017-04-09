@@ -127,7 +127,11 @@ class Features:
     def __init__(self, board_size, feature_names=None):
         self.feature_names = feature_names or FEATURES.keys()
         self.board_size = board_size
-        self.shape = (skewed_dim(board_size), board_size)
+        self.shape = (
+            skewed_dim(board_size),
+            board_size,
+            sum(FEATURES[name].depth for name in self.feature_names)
+        )
 
     def input_vector(self, board):
         return skew(
@@ -154,19 +158,13 @@ class Features:
         return res
 
     def combine(self, feature_map):
-        pass
+        vals = [feature_map[name] for name in self.feature_names]
+        return np.concatenate(vals, 3)
 
     def one_hot_move(self, move):
         one_hot = np.fromfunction(
             lambda x, y: np.logical_and(y == move.y, x == move.x + move.y // 2),
-            self.shape
+            self.shape[0:2]
         )
 
         return one_hot
-
-    @property
-    def depth(self):
-        d = 0
-        for name in self.feature_names:
-            d += FEATURES[name].depth
-        return d

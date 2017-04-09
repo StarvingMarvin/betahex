@@ -1,10 +1,10 @@
 import tensorflow as tf
 
 
-def conv_layer(x, W, b):
+def conv_layer(x, W, b, name=None):
     conv = tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='VALID')
     conv_with_b = tf.nn.bias_add(conv, b)
-    conv_out = tf.nn.relu(conv_with_b)
+    conv_out = tf.nn.relu(conv_with_b, name=name)
     return conv_out
 
 
@@ -17,7 +17,7 @@ class CommonModel:
 
         self.x = tf.placeholder(
             tf.float16,
-            [None, features.shape[0], features.shape[1], features.depth],
+            (None,) + features.shape,
             'x'
         )
 
@@ -29,7 +29,7 @@ class CommonModel:
 
     def get(self):
         h1_size = self.layer_dim_5
-        W1 = tf.Variable(tf.random_normal([5, 5, self.features.depth, h1_size], dtype=tf.float16), dtype=tf.float16)
+        W1 = tf.Variable(tf.random_normal([5, 5, self.features.shape[2], h1_size], dtype=tf.float16), dtype=tf.float16)
         b1 = tf.Variable(tf.random_normal([h1_size], dtype=tf.float16), dtype=tf.float16)
         padded = tf.pad(self.x, [[0, 0], [2, 2], [2, 2], [0, 0]], "CONSTANT")
         prev = conv_layer(padded, W1, b1)

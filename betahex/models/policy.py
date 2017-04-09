@@ -4,22 +4,25 @@ from betahex.models.common import CommonModel
 
 class Policy(CommonModel):
 
-    def __init__(self, board_size=13, input_features=None, layer_dim_5=60, layer_dims_3=None):
-        super().__init__(board_size, input_features, layer_dim_5, layer_dims_3)
-        self.y = tf.placeholder(tf.float16, [None, self.skewed_dim[0], self.skewed_dim[1]])
+    def __init__(self, features, layer_dim_5=60, layer_dims_3=None):
+        super().__init__(features, layer_dim_5, layer_dims_3)
+        self.y = tf.placeholder(tf.float16, [None, features.shape[0] * features.shape[1]])
 
     def model(self):
 
         common = self.get()
+        previous_dim = self.layer_dims_3[-1]
 
         W_out = tf.Variable(
-            tf.random_normal([1, 1, self.layer_dims_3[-1], 1], dtype=tf.float16),
+            tf.random_normal([1, 1, previous_dim, 1], dtype=tf.float16),
             dtype=tf.float16, name='Policy_W_out'
         )
         activation = tf.nn.conv2d(common, W_out, strides=[1, 1, 1, 1],
                            padding='VALID', name='Policy_activation')
 
-        out = tf.nn.softmax(activation, name='Policy_softmax')
+        logits = tf.reshape(activation, [-1, self.features.shape[0] * self.features.shape[1]])
+
+        out = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=self.y, name='Policy_softmax')
 
         return out
 

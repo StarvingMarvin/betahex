@@ -1,9 +1,9 @@
 from threading import Thread
-
-import numpy as np
-import multiprocessing as mp
 from os.path import join
 from glob import glob
+import tables
+import numpy as np
+import multiprocessing as mp
 
 from betahex.game import Board, Move
 from betahex.models.features import Features
@@ -70,7 +70,7 @@ def processor_init(f, q):
 def process_sgfs(board_size, input_dir, output_dir):
 
     q = mp.JoinableQueue()
-    feat = Features(board_size, ('black', 'white', 'empty', 'recentness'))
+    feat = Features(board_size)
 
     t = Thread(
         target=writer,
@@ -94,11 +94,10 @@ def process_sgfs(board_size, input_dir, output_dir):
     q.join()
 
 
-def write_input_vectors(features, data, output_dir):
+def write_input_vectors(features, data, output_file):
     x = data['x']
     y = data['y']
     fmap = features.split(x)
-    fmap['y'] = y
     xshape = list(np.shape(x))
     yshape = list(np.shape(y))
 
@@ -106,22 +105,37 @@ def write_input_vectors(features, data, output_dir):
     assert len(yshape) == 3
     assert xshape[1] == yshape[1] == features.shape[0]
     assert xshape[2] == yshape[2] == features.shape[1]
-    assert xshape[3] == features.depth
+    assert xshape[3] == features.shape[2]
     assert xshape[0] == yshape[0]
 
     for k, v in fmap.items():
-        with open(join(output_dir, k + ".npy"), 'a+b') as out:
-            np.save(out, v)
+        if k not in output_file.root.x:
+            print("creating array for", k)
+            output_file.create_earray(
+                output_file.root.x, k,
+                atom=tables.Int8Atom(),
+                shape=(0,) + np.shape(v)[1:3]
+            )
+        fa = output_file.get_node(output_file.root.x, k)
+        fa.append(v)
+    ya = output_file.get_node(output_file.root.y)
+    ya.append(y)
 
 
 def writer(q, features, output_dir):
+    filename = join(output_dir, 'sample.h5')
+    f = tables.open_file(filename, mode='w')
+    f.create_group(f.root, 'x')
+    f.create_earray(f.root, 'y', atom=tables.Int8Atom(), shape=(0,)+features.shape[0:2])
     cnt = 0
     while True:
         chunk = q.get()
-        cnt += np.shape(chunk['y'])[0]
-        write_input_vectors(features, chunk, output_dir)
+        inc = np.shape(chunk['y'])[0]
+        cnt += inc
+        write_input_vectors(features, chunk, f)
         q.task_done()
+        print("inc", inc)
         print("processed %s moves" % cnt)
 
 if __name__ == '__main__':
-    process_sgfs(13, 'data/sgf/sample', 'data/npy/sample')
+    process_sgfs(13, 'data/sgf/sample', 'data/hdf5')
