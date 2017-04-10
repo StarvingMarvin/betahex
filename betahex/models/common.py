@@ -33,6 +33,7 @@ class CommonModel:
         b1 = tf.Variable(tf.random_normal([h1_size], dtype=tf.float16), dtype=tf.float16)
         padded = tf.pad(self.x, [[0, 0], [2, 2], [2, 2], [0, 0]], "CONSTANT")
         prev = conv_layer(padded, W1, b1)
+
         prev_size = h1_size
 
         for dim in self.layer_dims_3:
