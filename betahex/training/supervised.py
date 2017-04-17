@@ -1,51 +1,106 @@
-import tensorflow as tf
 import numpy as np
 import tables
+from tensorflow.python.estimator.inputs.numpy_io import numpy_input_fn
 
-from betahex.models.features import Features
-from betahex.models.policy import Policy
+import tensorflow as tf
+from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
+from tensorflow.contrib import learn
+from tensorflow.contrib.learn.python.learn.monitors import ValidationMonitor
+from tensorflow.python.estimator.checkpoint_utils import load_variable
+
+from betahex.features import Features
+from betahex.models import make_policy
+
+tf.logging.set_verbosity(tf.logging.INFO)
+
+def make_train_model(feat):
+    p = make_policy(feat)
+
+    def train_model(x, y, mode):
+        logits = p(x)
+
+        loss = None
+        train_op = None
+
+        # Calculate Loss (for both TRAIN and EVAL modes)
+        if mode != learn.ModeKeys.INFER:
+            loss = tf.losses.softmax_cross_entropy(
+                onehot_labels=y, logits=logits)
+
+        # Configure the Training Op (for TRAIN mode)
+        if mode == learn.ModeKeys.TRAIN:
+            train_op = tf.contrib.layers.optimize_loss(
+                loss=loss,
+                global_step=tf.contrib.framework.get_global_step(),
+                learning_rate=0.0001,
+                optimizer="Adam"
+            )
+
+        # Generate Predictions
+        predictions = {
+            "classes": tf.argmax(
+                input=logits, axis=1, name="prediction_class"),
+            "probabilities": tf.nn.softmax(
+                logits, name="softmax_tensor"),
+            "logits": logits
+        }
+
+        metrics = {
+            "accuracy":
+                learn.MetricSpec(
+                    metric_fn=accuracy, prediction_key="classes")
+        }
+
+        tf.train.Scaffold()
+
+        # Return a ModelFnOps object
+        return model_fn_lib.ModelFnOps(
+            mode=mode, predictions=predictions, loss=loss, train_op=train_op
+        )
+
+    return train_model
+
+
+def make_input_fn(feat, data, batch_size):
+    input_features = {node.name: node for node in data.get_node('/x')}
+    ys = np.reshape(data.get_node('/y'), (-1, feat.shape[0] * feat.shape[1]))
+    return numpy_input_fn(input_features, ys, batch_size=batch_size, num_epochs=5, shuffle=False, num_threads=1)
+
+
+def accuracy(labels, predictions, weights=None, metrics_collections=None,
+             updates_collections=None, name=None):
+    return tf.metrics.accuracy(
+        tf.argmax(labels, axis=1), predictions, weights,
+        metrics_collections, updates_collections, name
+    )
+
+
+def main(unused_argv):
+    # Load training and eval data
+    feat = Features(13)
+
+    model_fn = make_train_model(feat)
+
+    config = learn.RunConfig(save_checkpoints_secs=60)
+
+    est = learn.Estimator(
+        model_fn=model_fn, model_dir="data/tf/try1", config=config
+    )
+
+    training_data = tables.open_file('data/hdf5/training.h5')
+    train_in = make_input_fn(feat, training_data, 256)
+
+    # validation_data = tables.open_file('data/hdf5/validation.h5')
+    # eval_in = make_input_fn(feat, training_data, 256)
+
+    for i in range(400):
+        est.fit(
+            input_fn=train_in,
+            steps=50
+        )
+
+    training_data.close()
 
 
 if __name__ == '__main__':
-    feat = Features(13)
-    p = Policy(feat)
-    data = tables.open_file('data/hdf5/sample.h5')
-
-    input_features = {node.name: node for node in data.get_node('/x')}
-
-    ys = np.reshape(data.get_node('/y'), (-1, feat.shape[0] * feat.shape[1]))
-    y = tf.placeholder(tf.float16, [None, feat.shape[0] * feat.shape[1]])
-
-    input_vector = feat.combine(input_features)
-    model = p.model()
-    out = tf.nn.softmax_cross_entropy_with_logits(
-        logits=model, labels=y, name='Policy_softmax'
-    )
-
-    cost = tf.reduce_mean(out)
-    train_op = tf.train.AdamOptimizer().minimize(cost)
-
-    guess = tf.argmax(model, 1)
-    correct = tf.argmax(y, 1)
-
-    # correct_pred = tf.equal(guess, correct)
-
-    # accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-
-    print("shape", feat.shape)
-    print("input", {k: np.shape(v) for k, v in input_features.items()})
-    print("combined", np.shape(input_vector))
-    print("output", np.shape(ys))
-
-    sess = tf.Session()
-    sess.run(tf.global_variables_initializer())
-    dataset_size = np.shape(input_vector)[0]
-    for i in range(0, 10):
-        print("Epoch:", i)
-        for j in range(0, dataset_size, 1000):
-            limit = min(dataset_size, j + 1000)
-            res, g, c = sess.run(
-                [model, guess, correct],
-                feed_dict={p.x: input_vector[j:limit], y: ys[j:limit]})
-            print(min(g), min(c))
-            print(max(g), max(c))
+    tf.app.run()

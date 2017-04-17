@@ -1,12 +1,13 @@
-from threading import Thread
-from os.path import join
-from glob import glob
-import tables
-import numpy as np
 import multiprocessing as mp
+from glob import glob
+from threading import Thread
 
+import numpy as np
+import tables
+from os.path import join
+
+from betahex.features import Features
 from betahex.game import Board, Move
-from betahex.models.features import Features
 from betahex.utils.sgf import read_sgf
 
 
@@ -114,8 +115,9 @@ def write_input_vectors(features, data, output_file):
             output_file.create_earray(
                 output_file.root.x, k,
                 atom=tables.Int8Atom(),
-                shape=(0,) + np.shape(v)[1:3]
+                shape=(0,) + np.shape(v)[1:]
             )
+
         fa = output_file.get_node(output_file.root.x, k)
         fa.append(v)
     ya = output_file.get_node(output_file.root.y)
@@ -123,7 +125,7 @@ def write_input_vectors(features, data, output_file):
 
 
 def writer(q, features, output_dir):
-    filename = join(output_dir, 'sample.h5')
+    filename = join(output_dir, 'main.h5')
     f = tables.open_file(filename, mode='w')
     f.create_group(f.root, 'x')
     f.create_earray(f.root, 'y', atom=tables.Int8Atom(), shape=(0,)+features.shape[0:2])
@@ -138,4 +140,4 @@ def writer(q, features, output_dir):
         print("processed %s moves" % cnt)
 
 if __name__ == '__main__':
-    process_sgfs(13, 'data/sgf/sample', 'data/hdf5')
+    process_sgfs(13, 'data/sgf/main', 'data/hdf5')
