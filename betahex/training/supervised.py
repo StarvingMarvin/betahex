@@ -1,12 +1,9 @@
 import numpy as np
-import tables
 from tensorflow.python.estimator.inputs.numpy_io import numpy_input_fn
-
+import tables
 import tensorflow as tf
 from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
 from tensorflow.contrib import learn
-from tensorflow.contrib.learn.python.learn.monitors import ValidationMonitor
-from tensorflow.python.estimator.checkpoint_utils import load_variable
 
 from betahex.features import Features
 from betahex.models import make_policy
@@ -17,7 +14,7 @@ def make_train_model(feat):
     p = make_policy(feat)
 
     def train_model(x, y, mode):
-        logits = p(x)
+        logits = p(x, mode)
 
         loss = None
         train_op = None
@@ -32,7 +29,7 @@ def make_train_model(feat):
             train_op = tf.contrib.layers.optimize_loss(
                 loss=loss,
                 global_step=tf.contrib.framework.get_global_step(),
-                learning_rate=0.0001,
+                learning_rate=0.001,
                 optimizer="Adam"
             )
 
@@ -45,11 +42,11 @@ def make_train_model(feat):
             "logits": logits
         }
 
-        metrics = {
-            "accuracy":
-                learn.MetricSpec(
-                    metric_fn=accuracy, prediction_key="classes")
-        }
+        # metrics = {
+        #     "accuracy":
+        #         learn.MetricSpec(
+        #             metric_fn=accuracy, prediction_key="classes")
+        # }
 
         tf.train.Scaffold()
 
@@ -62,9 +59,15 @@ def make_train_model(feat):
 
 
 def make_input_fn(feat, data, batch_size):
+    # opt = tf.python_io.TFRecordOptions(tf.python_io.TFRecordCompressionType.GZIP)
+    # reader = tf.TFRecordReader(options=opt)
+
     input_features = {node.name: node for node in data.get_node('/x')}
     ys = np.reshape(data.get_node('/y'), (-1, feat.shape[0] * feat.shape[1]))
-    return numpy_input_fn(input_features, ys, batch_size=batch_size, num_epochs=5, shuffle=False, num_threads=1)
+    return numpy_input_fn(
+        input_features, ys, batch_size=batch_size,
+        num_epochs=None, shuffle=True, num_threads=1
+    )
 
 
 def accuracy(labels, predictions, weights=None, metrics_collections=None,
@@ -84,20 +87,40 @@ def main(unused_argv):
     config = learn.RunConfig(save_checkpoints_secs=60)
 
     est = learn.Estimator(
-        model_fn=model_fn, model_dir="data/tf/try1", config=config
+        model_fn=model_fn, model_dir="data/tf/models/192-5x128b+1bn+mask", config=config
     )
 
     training_data = tables.open_file('data/hdf5/training.h5')
-    train_in = make_input_fn(feat, training_data, 256)
+    train_in = make_input_fn(feat, training_data, 64)
 
-    # validation_data = tables.open_file('data/hdf5/validation.h5')
-    # eval_in = make_input_fn(feat, training_data, 256)
+    # training_queue = tf.train.string_input_producer(
+    #     ["data/tf/features/training.tfrecords"], num_epochs=5
+    # )
+    # training_data = None
+    # train_in = make_input_fn(feat, training_data, 64)
 
-    for i in range(400):
+    # validation_queue = tf.train.string_input_producer(
+    #     ["data/tf/features/validation.tfrecords"], num_epochs=10
+    # )
+    #
+    # validation_data = None
+    # eval_in = make_input_fn(feat, validation_data, 128)
+
+    validation_data = tables.open_file('data/hdf5/validation.h5')
+    eval_in = make_input_fn(feat, validation_data, 64)
+
+    for i in range(80):
         est.fit(
             input_fn=train_in,
-            steps=50
+            steps=2000
         )
+        metrics = {
+            "accuracy":
+                learn.MetricSpec(
+                    metric_fn=accuracy, prediction_key="classes")
+        }
+        est.evaluate(input_fn=eval_in, metrics=metrics, steps=100)
+        # tf.summary.histogram("targets")
 
     training_data.close()
 
