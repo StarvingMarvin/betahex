@@ -10,8 +10,9 @@ from betahex.models import make_policy
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
+
 def make_train_model(feat):
-    p = make_policy(feat)
+    p = make_policy(feat, 128, [4, 1])
 
     def train_model(x, y, mode):
         logits = p(x, mode)
@@ -19,26 +20,32 @@ def make_train_model(feat):
         loss = None
         train_op = None
 
+        first_guess = tf.argmax(input=logits, axis=1, name="guessed_move")
+        target = tf.argmax(input=y, axis=1, name="actual_move")
+
         # Calculate Loss (for both TRAIN and EVAL modes)
         if mode != learn.ModeKeys.INFER:
             loss = tf.losses.softmax_cross_entropy(
                 onehot_labels=y, logits=logits)
+            tf.summary.histogram("guess", first_guess)
+            tf.summary.histogram("target", target)
+
 
         # Configure the Training Op (for TRAIN mode)
         if mode == learn.ModeKeys.TRAIN:
             train_op = tf.contrib.layers.optimize_loss(
                 loss=loss,
                 global_step=tf.contrib.framework.get_global_step(),
-                learning_rate=0.001,
-                optimizer="Adam"
+                learning_rate=0.01,
+                optimizer="Adam",
+                learning_rate_decay_fn=lambda lr, step: tf.train.exponential_decay(lr, step, 10000, .9)
             )
 
         # Generate Predictions
         predictions = {
-            "classes": tf.argmax(
-                input=logits, axis=1, name="prediction_class"),
+            "classes": first_guess,
             "probabilities": tf.nn.softmax(
-                logits, name="softmax_tensor"),
+                logits, name="move_probabilities"),
             "logits": logits
         }
 
@@ -87,11 +94,11 @@ def main(unused_argv):
     config = learn.RunConfig(save_checkpoints_secs=60)
 
     est = learn.Estimator(
-        model_fn=model_fn, model_dir="data/tf/models/192-5x128b+1bn+mask", config=config
+        model_fn=model_fn, model_dir="data/tf/models/128f-4-bn-1-mask-l01d.9", config=config
     )
 
     training_data = tables.open_file('data/hdf5/training.h5')
-    train_in = make_input_fn(feat, training_data, 64)
+    train_in = make_input_fn(feat, training_data, 128)
 
     # training_queue = tf.train.string_input_producer(
     #     ["data/tf/features/training.tfrecords"], num_epochs=5
@@ -109,7 +116,7 @@ def main(unused_argv):
     validation_data = tables.open_file('data/hdf5/validation.h5')
     eval_in = make_input_fn(feat, validation_data, 64)
 
-    for i in range(80):
+    for i in range(50):
         est.fit(
             input_fn=train_in,
             steps=2000
@@ -120,7 +127,6 @@ def main(unused_argv):
                     metric_fn=accuracy, prediction_key="classes")
         }
         est.evaluate(input_fn=eval_in, metrics=metrics, steps=100)
-        # tf.summary.histogram("targets")
 
     training_data.close()
 
