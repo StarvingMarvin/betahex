@@ -38,7 +38,7 @@ class Move:
 
     def rotate(self, board_size):
         bs = board_size - 1
-        return Move([self.color, self.n, bs - self.y, bs - self.x, self.special])
+        return Move([self.color, self.n, bs - self.x, bs - self.y, self.special])
 
     @property
     def color(self):

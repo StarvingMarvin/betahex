@@ -42,8 +42,8 @@ def skew(features):
     dims = [skewed_dim(w), h, d]
     skewed = np.zeros(dims, dtype=np.uint8)
 
-    ys = np.repeat(np.arange(h), w * d)
-    xs = np.repeat(np.tile(np.arange(w), h), d) + ys // 2
+    ys = np.repeat(np.tile(np.arange(w), h), d)
+    xs = np.repeat(np.arange(h), w * d) + ys // 2
     zs = np.tile(np.arange(d), w * h)
 
     idx = np.ravel_multi_index(
