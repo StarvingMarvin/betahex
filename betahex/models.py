@@ -36,7 +36,7 @@ def common_model(features, filter_count=None, groups=None):
 
 
 def mask_invalid(x, valid, min_ratio=1e-5, name=None):
-    preliminary = tf.multiply(x, valid, name)
+    preliminary = tf.multiply(x, valid)
     batch_min = tf.reduce_min(preliminary, name="mask_min")
     batch_max = tf.reduce_max(preliminary, name="mask_max")
     gamut = batch_max - batch_min
@@ -56,6 +56,7 @@ def make_policy(features, filter_count=None, groups=None):
     def model(input, mode):
         common = common_f(input, mode)
         activation = conv_layer(common, 1, 1, None, "1-filter-conv-output", False)
+        tf.summary.image("output_activation_img", activation)
         valid = tf.to_float(input['empty'])
         masked = mask_invalid(activation, valid, name="masked-output")
         logits = tf.reshape(
@@ -63,8 +64,9 @@ def make_policy(features, filter_count=None, groups=None):
             [-1, features.shape[0] * features.shape[1]],
             name="logits"
         )
+        tf.summary.image("output_logits_img", masked)
 
-        return logits
+        return activation, logits
 
     return model
 
