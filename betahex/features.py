@@ -1,5 +1,7 @@
 import numpy as np
 import sys
+
+from collections import OrderedDict
 from functools import wraps
 
 from betahex.game import Move
@@ -61,7 +63,7 @@ def skew(features):
 def black_edges(board):
     w, h = board.shape()
     return np.fromfunction(
-        lambda x, y: (x == 0) + (x == h - 1),
+        lambda x, y: (y == 0) + (y == h - 1),
         (w, h),
         dtype=np.int8
     )
@@ -72,7 +74,7 @@ def black_edges(board):
 def white_edges(board):
     w, h = board.shape()
     return np.fromfunction(
-        lambda x, y: (y == 0) + (y == w - 1),
+        lambda x, y: (x == 0) + (x == w - 1),
         (w, h),
         dtype=np.int8
     )
@@ -116,11 +118,13 @@ def recentness(board):
     ))
 
 
-FEATURES = {f.name: f for f in
-            [getattr(sys.modules[__name__], name)
-             for name in dir(sys.modules[__name__])]
-            if getattr(f, 'is_feature', False)
-            }
+FEATURES = OrderedDict(
+    {f.name: f for f in
+     [getattr(sys.modules[__name__], name)
+      for name in dir(sys.modules[__name__])]
+     if getattr(f, 'is_feature', False)
+     }
+)
 
 
 class Features:
