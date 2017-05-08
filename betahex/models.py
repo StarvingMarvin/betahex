@@ -18,33 +18,37 @@ def common_model(features, filter_count=None, groups=None):
     def model(input, mode):
         tensors = [input[feat] for feat in features.feature_names]
         mangled = tf.cast(tf.concat(tensors, 3), tf.float32)
-        prev = conv_layer(mangled, filter_count, 5, tf.nn.elu, "5-filter-conv-input", True)
+        prev = conv_layer(mangled, filter_count * 2, 5, tf.nn.relu, "5-filter-conv-input", True)
 
         head = groups[:-1]
         tail = groups[-1]
 
+        training = mode == learn.ModeKeys.TRAIN
+
         for g, group in enumerate(head):
-            for i in range(group):
-                prev = conv_layer(prev, filter_count, 3, tf.nn.elu, "3-filter-conv-g{}-{}".format(g, i), True)
-            prev = tf.layers.batch_normalization(prev, axis=3, training=mode == learn.ModeKeys.TRAIN,
-                                                 name="batch_norm-g{}".format(g))
+            if group < 0:
+                prev = tf.layers.dropout(prev, rate=-group, training=training)
+            else:
+                for i in range(group):
+                    prev = conv_layer(prev, filter_count, 3, tf.nn.relu, "3-filter-conv-g{}-{}".format(g, i), True)
+                prev = tf.layers.batch_normalization(
+                    prev, axis=3, training=training, name="batch_norm-g{}".format(g)
+                )
+
         for i in range(tail):
-            prev = conv_layer(prev, filter_count, 3, tf.nn.elu, "3-filter-conv-{}".format(i), True)
+            prev = conv_layer(prev, filter_count, 3, tf.nn.relu, "3-filter-conv-{}".format(i), True)
         return prev
 
     return model
 
 
-def mask_invalid(x, valid, min_ratio=1e-5, name=None):
-    preliminary = tf.multiply(x, valid)
-    batch_min = tf.reduce_min(preliminary, name="mask_min")
-    batch_max = tf.reduce_max(preliminary, name="mask_max")
-    gamut = batch_max - batch_min
-    epsilon = gamut * min_ratio
+def mask_invalid(x, valid, name=None):
+    batch_min = tf.reduce_min(x, name="mask_min")
+    batch_max = tf.reduce_max(x, name="mask_max")
+
     tf.summary.scalar("mask_min", batch_min)
     tf.summary.scalar("mask_max", batch_max)
-    tf.summary.scalar("mask_epsilon", epsilon)
-    shifted = x - batch_min + epsilon
+    shifted = x - batch_min
     masked = tf.multiply(shifted, valid, name)
     return masked
 
