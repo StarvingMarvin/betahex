@@ -118,13 +118,12 @@ def recentness(board):
     ))
 
 
-FEATURES = OrderedDict(
-    {f.name: f for f in
-     [getattr(sys.modules[__name__], name)
-      for name in dir(sys.modules[__name__])]
-     if getattr(f, 'is_feature', False)
-     }
-)
+FEATURES = OrderedDict()
+
+for name in sorted(dir(sys.modules[__name__])):
+    f = getattr(sys.modules[__name__], name)
+    if getattr(f, 'is_feature', False):
+        FEATURES[f.__name__] = f
 
 
 class Features:
