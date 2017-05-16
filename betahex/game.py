@@ -71,7 +71,7 @@ class Move:
 
 
 def color(c):
-    return Move.B if c.upper() == 'B' else Move.W
+    return Move.B if c[0].upper() == 'B' else Move.W
 
 
 @np.vectorize
@@ -154,7 +154,7 @@ class Game:
         self.rank_white = ''
         self.game_info = ''
         self.result = ''
-        self.board = Board(size)
+        self.board = Board.make_of_size(size)
 
     def play_move(self, x, y):
         # TODO: check if move is valid
@@ -163,13 +163,13 @@ class Game:
 
     def place_move(self, color, x, y):
         # TODO: sanitize input
-        move = Move(color, x, y)
+        move = Move.make_move(color, self.move_number() + 1, x, y)
         self.board = self.board.place_move(move)
         self.moves.append(move)
 
     def play_swap_pieces(self):
         # TODO: check if move #2
-        self.moves.append(Move(self.next_color, None, None, 'swap-pieces'))
+        self.moves.append(Move.make_special_move(self.next_color, self.move_number() + 1, Move.SWAP_PIECES))
         self.board = self.board.swap()
         self.next_color = opposite_color(self.next_color)
 
@@ -177,7 +177,10 @@ class Game:
         # TODO: check if move #2
         self.player_black, self.player_white = self.player_white, self.player_black
         self.rank_black, self.rank_white = self.rank_white, self.rank_black
-        self.moves.append(Move(self.next_color, None, None, 'swap-sides'))
+        self.moves.append(Move.make_special_move(self.next_color, self.move_number() + 1, Move.SWAP_SIDES))
+
+    def move_number(self):
+        return len(self.moves)
 
 
 def moves2boards(board_size, moves):

@@ -4,7 +4,7 @@ import tables
 import tensorflow as tf
 from tensorflow.contrib import learn
 
-from betahex.features import Features, FEATURES
+from betahex.features import Features
 from betahex.training.common import make_train_model
 from betahex.models import MODEL
 
@@ -46,18 +46,18 @@ def main(unused_argv):
 
     est = learn.Estimator(
         model_fn=model_fn,
-        model_dir="data/tf/models/supervised/%s-1e-5-penal-1-0-l3e-3d.96adam" % MODEL['name'],
+        model_dir="data/tf/models/reinforcement/%s" % MODEL['name'],
         config=config
     )
 
     test_data = tables.open_file('data/hdf5/test.h5')
-    test_in = make_input_fn(feat, test_data, 100)
+    test_in = make_input_fn(feat, test_data, 64)
 
     sample_data = tables.open_file('data/hdf5/sample.h5')
     sample_in = make_input_fn(feat, sample_data, 64)
 
     validation_data = tables.open_file('data/hdf5/validation.h5')
-    eval_in = make_input_fn(feat, validation_data, 100)
+    eval_in = make_input_fn(feat, validation_data, 64)
 
     metrics = {
         "accuracy":

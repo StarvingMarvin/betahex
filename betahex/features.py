@@ -143,6 +143,9 @@ class Features:
             )
         )
 
+    def input_map(self, board):
+        return self.split(np.asarray(self.input_vector(board), np.float32))
+
     def split(self, input_vector):
         dims = np.ndim(input_vector)
         if 4 < dims < 3:
