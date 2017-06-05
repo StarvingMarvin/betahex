@@ -137,9 +137,78 @@ class Board:
     def shape(self):
         return np.shape(self.data)[:2]
 
+    def get_move(self, x, y):
+        return Move(self.data[x, y])
+
     def __repr__(self):
         return '\n'.join(' ' * i + ' '.join(['.', 'X', 'O'][field[0]] for field in row)
                          for i, row in enumerate(self.data))
+
+
+def neighbours(coord):
+    x = coord[0]
+    y = coord[1]
+    return [(y - 1, x), (y - 1, x + 1), (y, x - 1), (y, x + 1), (y + 1, x - 1), (y + 1, x)]
+
+
+def sub_int(a, b):
+    return np.asarray(a, np.int8) - np.asarray(b, np.int8)
+
+
+def and3(a, b, c):
+    return np.logical_and(np.logical_and(a, b), c)
+
+
+def distances(board, edge):
+    color = Move.B if edge in ('N', 'S') else Move.W
+
+    UNREACHABLE = 127
+
+    VISITED = 1
+    UNVISIED = 0
+    REACHED = -1
+
+    colors = board.colors()
+    padded = np.pad(colors, [(1, 1), (1, 1)], 'constant', constant_values=[(-1, -1), (-1, -1)])
+    padded_shape = np.shape(padded)
+    dst_fs = {
+        'N': lambda x, y: y != 0,
+        'S': lambda x, y: y != padded_shape[1] - 1,
+        'E': lambda x, y: x != padded_shape[0] - 1,
+        'W': lambda x, y: x != 0
+    }
+
+    dist = UNREACHABLE * np.fromfunction(dst_fs[edge], padded_shape, dtype=np.int8)
+
+    visit_fs = {
+        'N': lambda x, y: sub_int(y == 0, and3(y == 1, x != 0, x != padded_shape[0] - 1)),
+        'S': lambda x, y: sub_int(y == padded_shape[1] - 1, and3(y == padded_shape[1] - 2, x != 0, x != padded_shape[0] - 1)),
+        'E': lambda x, y: sub_int(x == padded_shape[0] - 1, and3(x == padded_shape[0] - 2, y != 0, y != padded_shape[1] - 1)),
+        'W': lambda x, y: sub_int(x == 0, and3(x == 1, y != 0, y != padded_shape[1] - 1))
+    }
+    visited = np.fromfunction(visit_fs[edge], padded_shape, dtype=np.int8)
+
+    dist_board = np.dstack([padded, dist, visited])
+
+    reaching = True
+    while reaching:
+        reached = np.nonzero(dist_board[:, :, 2] == REACHED)
+        reaching = False
+        ns = set()
+        for coord in np.transpose(reached):
+            ns.update(neighbours(coord))
+
+        for coord in ns:
+            m = dist_board[coord]
+            if True:
+                pass
+
+        idx = np.ravel_multi_index(
+            np.pad(reached, [0, 1], 'constant', constant_values=[2]),
+            np.shape(dist_board)
+        )
+
+        np.put(dist_board, idx, np.ones(np.shape(reached)[1]))
 
 
 class Game:
