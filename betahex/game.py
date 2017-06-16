@@ -148,7 +148,7 @@ class Board:
 def neighbours(coord):
     x = coord[0]
     y = coord[1]
-    return [(y - 1, x), (y - 1, x + 1), (y, x - 1), (y, x + 1), (y + 1, x - 1), (y + 1, x)]
+    return [(x, y - 1), (x + 1, y - 1), (x - 1, y), (x + 1, y), (x - 1, y + 1), (x, y + 1)]
 
 
 def sub_int(a, b):
@@ -188,27 +188,21 @@ def distances(board, edge):
     }
     visited = np.fromfunction(visit_fs[edge], padded_shape, dtype=np.int8)
 
-    dist_board = np.dstack([padded, dist, visited])
-
     reaching = True
     while reaching:
-        reached = np.nonzero(dist_board[:, :, 2] == REACHED)
+        reached = np.nonzero(visited == REACHED)
         reaching = False
-        ns = set()
+
         for coord in np.transpose(reached):
-            ns.update(neighbours(coord))
+            ns = neighbours(coord)
+            c = padded[tuple(coord)]
+            d = dist[tuple(coord)]
+            for n in ns:
+                if
+            d_planes = []
 
-        for coord in ns:
-            m = dist_board[coord]
-            if True:
-                pass
 
-        idx = np.ravel_multi_index(
-            np.pad(reached, [0, 1], 'constant', constant_values=[2]),
-            np.shape(dist_board)
-        )
 
-        np.put(dist_board, idx, np.ones(np.shape(reached)[1]))
 
 
 class Game:
