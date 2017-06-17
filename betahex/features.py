@@ -4,7 +4,7 @@ import sys
 from collections import OrderedDict
 from functools import wraps
 
-from betahex.game import Move
+from betahex.game import Move, distances as dist
 from betahex.utils import parametrized
 
 
@@ -110,12 +110,42 @@ def recentness(board):
 
     return np.dstack((
         moves == latest,
-        np.logical_and(max(latest - 2, 1) <= moves, moves < latest),
-        np.logical_and(max(latest - 6, 1) <= moves, moves < latest - 2),
-        np.logical_and(max(latest - 14, 1) <= moves, moves < latest - 6),
-        np.logical_and(max(latest - 30, 1) <= moves, moves < latest - 14),
+        (max(latest - 2, 1) <= moves) & (moves < latest),
+        (max(latest - 6, 1) <= moves) & (moves < latest - 2),
+        (max(latest - 14, 1) <= moves) & (moves < latest - 6),
+        (max(latest - 30, 1) <= moves) & (moves < latest - 14),
         moves < latest - 30,
     ))
+
+
+@feature(depth=40)
+def distances(board):
+    dist_n = dist(board, 'N')
+    dist_s = dist(board, 'S')
+    dist_e = dist(board, 'E')
+    dist_w = dist(board, 'W')
+
+    def dist_to_feat(dist, mask):
+        return np.dstack((mask & (dist == 0),
+                          mask & (dist == 1),
+                          mask & (dist == 2),
+                          mask & (dist == 3),
+                          mask & (dist == 4),
+                          mask & (dist == 5),
+                          mask & (dist == 6),
+                          mask & (dist == 7),
+                          mask & (dist >= 8) & (dist < 16),
+                          mask & (dist >= 16)))
+
+    b = board.colors() == Move.B
+    w = board.colors() == Move.W
+
+    return np.dstack(
+        (dist_to_feat(dist_n, b),
+         dist_to_feat(dist_s, b),
+         dist_to_feat(dist_w, w),
+         dist_to_feat(dist_e, w))
+    )
 
 
 FEATURES = OrderedDict()

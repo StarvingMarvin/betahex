@@ -172,13 +172,29 @@ def distances(board, edge):
         ]), 2)
 
         dist[1:-1, 1:-1] = np.clip(
-            ((colors == 0) * (mins + 1)) +
-            ((colors == color) * mins)+
+            (colors == 0) * (mins + 1) +
+            (colors == color) * mins +
             (colors == opposite) * UNREACHABLE,
             0, UNREACHABLE
         )
 
-    return Board(np.dstack([colors, dist[1:-1, 1:-1]]))
+    return dist[1:-1, 1:-1]
+
+
+def victory(board):
+    dist_n = distances(board, 'N')
+    dist_s = distances(board, 'S')
+
+    if np.any((dist_n == 0) & (dist_s == 0)):
+        return Move.B
+
+    dist_w = distances(board, 'W')
+    dist_e = distances(board, 'E')
+
+    if np.any((dist_w == 0) & (dist_e == 0)):
+        return Move.W
+
+    return 0
 
 
 class Game:
@@ -203,20 +219,26 @@ class Game:
     def place_move(self, color, x, y):
         # TODO: sanitize input
         move = Move.make_move(color, self.move_number() + 1, x, y)
-        self.board = self.board.place_move(move)
-        self.moves.append(move)
+        self._move(move)
 
     def play_swap_pieces(self):
         # TODO: check if move #2
-        self.moves.append(Move.make_special_move(self.next_color, self.move_number() + 1, Move.SWAP_PIECES))
-        self.board = self.board.swap()
-        self.next_color = opposite_color(self.next_color)
+        self._move(Move.make_special_move(self.next_color, self.move_number() + 1, Move.SWAP_PIECES))
 
     def play_swap_sides(self):
         # TODO: check if move #2
-        self.player_black, self.player_white = self.player_white, self.player_black
-        self.rank_black, self.rank_white = self.rank_white, self.rank_black
-        self.moves.append(Move.make_special_move(self.next_color, self.move_number() + 1, Move.SWAP_SIDES))
+        self._move(Move.make_special_move(self.next_color, self.move_number() + 1, Move.SWAP_SIDES))
+
+    def _move(self, move):
+        self.moves.append(move)
+        if move.special == Move.SWAP_PIECES:
+            self.board = self.board.swap()
+            self.next_color = opposite_color(self.next_color)
+        elif move.special == Move.SWAP_SIDES:
+            self.player_black, self.player_white = self.player_white, self.player_black
+            self.rank_black, self.rank_white = self.rank_white, self.rank_black
+        else:
+            self.board = self.board.place_move(move)
 
     def move_number(self):
         return len(self.moves)
@@ -239,13 +261,3 @@ def moves2boards(board_size, moves):
         rot.append(cur.rotate())
         rot_flip.append(cur.swap().rotate())
     return normal, flip, rot, rot_flip
-
-
-# if __name__ == "__main__":
-#     b = Board.make_of_size(13)
-#     b = b.place_move(Move.make_move('B', 1, 1, 2))
-#     b = b.place_move(Move.make_move('W', 2, 1, 3))
-#     b = b.place_move(Move.make_move('B', 3, 2, 2))
-#     d = distances(b, 'N')
-#     print(d)
-#     print(d.move_numbers())
