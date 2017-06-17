@@ -145,28 +145,10 @@ class Board:
                          for i, row in enumerate(self.data))
 
 
-def neighbours(coord):
-    x = coord[0]
-    y = coord[1]
-    return [(x, y - 1), (x + 1, y - 1), (x - 1, y), (x + 1, y), (x - 1, y + 1), (x, y + 1)]
-
-
-def sub_int(a, b):
-    return np.asarray(a, np.int8) - np.asarray(b, np.int8)
-
-
-def and3(a, b, c):
-    return np.logical_and(np.logical_and(a, b), c)
-
-
 def distances(board, edge):
     color = Move.B if edge in ('N', 'S') else Move.W
-
-    UNREACHABLE = 127
-
-    VISITED = 1
-    UNVISIED = 0
-    REACHED = -1
+    opposite = opposite_color(color)
+    UNREACHABLE = 126
 
     colors = board.colors()
     padded = np.pad(colors, [(1, 1), (1, 1)], 'constant', constant_values=[(-1, -1), (-1, -1)])
@@ -180,29 +162,23 @@ def distances(board, edge):
 
     dist = UNREACHABLE * np.fromfunction(dst_fs[edge], padded_shape, dtype=np.int8)
 
-    visit_fs = {
-        'N': lambda x, y: sub_int(y == 0, and3(y == 1, x != 0, x != padded_shape[0] - 1)),
-        'S': lambda x, y: sub_int(y == padded_shape[1] - 1, and3(y == padded_shape[1] - 2, x != 0, x != padded_shape[0] - 1)),
-        'E': lambda x, y: sub_int(x == padded_shape[0] - 1, and3(x == padded_shape[0] - 2, y != 0, y != padded_shape[1] - 1)),
-        'W': lambda x, y: sub_int(x == 0, and3(x == 1, y != 0, y != padded_shape[1] - 1))
-    }
-    visited = np.fromfunction(visit_fs[edge], padded_shape, dtype=np.int8)
+    prev = UNREACHABLE * np.ones_like(dist)
+    while not np.array_equal(prev, dist):
+        prev = np.copy(dist)
+        mins = np.min(np.dstack([
+            prev[1:-1, :-2], prev[2:, :-2],
+            prev[:-2, 1:-1],     prev[2:, 1:-1],
+                prev[:-2, 2:], prev[1:-1, 2:]
+        ]), 2)
 
-    reaching = True
-    while reaching:
-        reached = np.nonzero(visited == REACHED)
-        reaching = False
+        dist[1:-1, 1:-1] = np.clip(
+            ((colors == 0) * (mins + 1)) +
+            ((colors == color) * mins)+
+            (colors == opposite) * UNREACHABLE,
+            0, UNREACHABLE
+        )
 
-        for coord in np.transpose(reached):
-            ns = neighbours(coord)
-            c = padded[tuple(coord)]
-            d = dist[tuple(coord)]
-            for n in ns:
-                if
-            d_planes = []
-
-
-
+    return Board(np.dstack([colors, dist[1:-1, 1:-1]]))
 
 
 class Game:
@@ -263,3 +239,13 @@ def moves2boards(board_size, moves):
         rot.append(cur.rotate())
         rot_flip.append(cur.swap().rotate())
     return normal, flip, rot, rot_flip
+
+
+# if __name__ == "__main__":
+#     b = Board.make_of_size(13)
+#     b = b.place_move(Move.make_move('B', 1, 1, 2))
+#     b = b.place_move(Move.make_move('W', 2, 1, 3))
+#     b = b.place_move(Move.make_move('B', 3, 2, 2))
+#     d = distances(b, 'N')
+#     print(d)
+#     print(d.move_numbers())
