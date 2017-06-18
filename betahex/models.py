@@ -100,5 +100,5 @@ MODEL = {
     'name': '64f-2-3-drop-5-2-mask-x2-relu',
     'filters': 64,
     'shape': [2, 3, -0.5, 2],
-    'features': ['empty', 'white', 'black', 'recentness', 'white_edges', 'black_edges', 'ones']
+    'features': ['black', 'white', 'empty', 'recentness', 'distance', 'black_edges', 'white_edges', 'ones']
 }

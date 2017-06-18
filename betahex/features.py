@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 import sys
 
 from collections import OrderedDict
@@ -169,12 +170,23 @@ class Features:
     def input_vector(self, board):
         return skew(
             np.dstack(
-                [FEATURES[feature](board) for feature in self.feature_names]
+                [FEATURES[feature](board) for feature in self.feature_names],
             )
         )
 
     def input_map(self, board):
-        return self.split(np.asarray(self.input_vector(board), np.float32))
+        return self.split(np.asarray(self.input_vector(board), np.int8))
+
+    def input_example(self, board, move):
+        feat_map = {
+            k: tf.train.Feature(bytes_list=tf.train.BytesList(value=[v.tobytes()]))
+            for k, v in self.input_map(board).items()
+        }
+
+        feat_map['y'] = tf.train.Feature(
+            bytes_list=tf.train.BytesList(value=[self.one_hot_move(move).tobytes()]))
+
+        return tf.train.Example(features=tf.train.Features(feature=feat_map))
 
     def split(self, input_vector):
         dims = np.ndim(input_vector)
@@ -199,7 +211,7 @@ class Features:
 
     def one_hot_move(self, move):
         one_hot = np.fromfunction(
-            lambda x, y: np.logical_and(y == move.y, x == move.x + move.y // 2),
+            lambda x, y: (y == move.y) & (x == move.x + move.y // 2),
             self.shape[0:2]
         )
 
