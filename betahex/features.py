@@ -179,7 +179,7 @@ class Features:
 
     def input_example(self, board, move):
         feat_map = {
-            k: tf.train.Feature(bytes_list=tf.train.BytesList(value=[v.tobytes()]))
+            k: tf.train.Feature(bytes_list=tf.train.BytesList(value=[np.asarray(v, dtype=np.float32).tobytes()]))
             for k, v in self.input_map(board).items()
         }
 

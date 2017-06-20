@@ -66,7 +66,6 @@ def test_victory():
 
 def test_convert():
     from betahex.utils.sgf import read_sgf
-    from betahex.features import distances as dist_f
     moves = read_sgf(join(dirname(__file__), 'data/1000211.sgf'))
     g = Game(13)
     for m in moves:
@@ -76,28 +75,4 @@ def test_convert():
     print(distances(g.board, 'S') * (g.board.colors() == Move.B))
     print(distances(g.board, 'W') * (g.board.colors() == Move.W))
     print(distances(g.board, 'E') * (g.board.colors() == Move.W))
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 0])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 1])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 2])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 3])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 4])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 5])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 10])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 11])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 12])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 13])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 14])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 15])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 20])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 21])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 22])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 23])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 24])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 25])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 30])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 31])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 32])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 33])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 34])
-    print(np.asarray(dist_f(g.board), np.int8)[:, :, 35])
     assert True
