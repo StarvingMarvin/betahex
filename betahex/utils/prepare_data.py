@@ -111,4 +111,4 @@ def writer(q, output_dir):
 
 
 if __name__ == '__main__':
-    process_sgfs(13, 'data/sgf/sample', 'data/tf/features')
+    process_sgfs(13, 'data/sgf/main', 'data/tf/features')

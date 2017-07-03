@@ -179,12 +179,19 @@ class Features:
 
     def input_example(self, board, move):
         feat_map = {
-            k: tf.train.Feature(bytes_list=tf.train.BytesList(value=[np.asarray(v, dtype=np.float32).tobytes()]))
+            k: tf.train.Feature(
+                float_list=tf.train.FloatList(
+                    value=np.asarray(v, dtype=np.float32).flatten()
+                )
+            )
             for k, v in self.input_map(board).items()
         }
 
+        y = np.asarray(self.one_hot_move(move), dtype=np.int64)
         feat_map['y'] = tf.train.Feature(
-            bytes_list=tf.train.BytesList(value=[self.one_hot_move(move).tobytes()]))
+            int64_list=tf.train.Int64List(
+                value=y.flatten())
+        )
 
         return tf.train.Example(features=tf.train.Features(feature=feat_map))
 
@@ -216,3 +223,12 @@ class Features:
         )
 
         return one_hot
+
+    def dimension(self, feature_name):
+        return self.surface() * FEATURES[feature_name].depth
+
+    def surface(self):
+        return self.shape[0] * self.shape[1]
+
+    def feature_shape(self, feature_name):
+        return self.shape[0], self.shape[1], FEATURES[feature_name].depth

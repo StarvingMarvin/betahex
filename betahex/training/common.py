@@ -12,15 +12,17 @@ def draw_position(inputs, guess, target):
     empty = inputs['empty']
     white_edges = inputs['white_edges']
 
-    actually = tf.reshape(target, [-1, 19, 13, 1])
+    actually = tf.to_float(tf.reshape(target, [-1, 19, 13, 1]))
     ind = np.arange(19 * 13).reshape([1, 19, 13, 1])
-    guess = tf.cast(tf.equal(ind, tf.reshape(guess, [-1, 1, 1, 1])), tf.int8)
+    guess = tf.cast(tf.equal(ind, tf.reshape(guess, [-1, 1, 1, 1])), tf.float32)
 
-    red = tf.cast(white * 200 + empty * 30 + guess * 100 + white_edges * 50, tf.uint8)
-    green = tf.cast(actually * 140 + empty * 30, tf.uint8)
-    blue = tf.cast(black * 220 + empty * 30 + guess * 220, tf.uint8)
+    red = tf.cast(white * 200 + empty * 30 + guess * 100 + white_edges * 50, tf.int8)
+    green = tf.cast(actually * 140 + empty * 30, tf.int8)
+    blue = tf.cast(black * 220 + empty * 30 + guess * 220, tf.int8)
 
-    tf.summary.image("position_img", tf.concat([red, green, blue], axis=3), max_outputs=6)
+    img = tf.bitcast(tf.concat([red, green, blue], axis=3), tf.uint8)
+
+    tf.summary.image("position_img", img, max_outputs=6)
 
 
 def penalize_invalid(x, valid_moves, valid_board, mode,
