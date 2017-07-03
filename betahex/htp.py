@@ -106,7 +106,9 @@ class HtpClient:
         model = make_train_model(
             self.features,
             policy_filters=MODEL['filters'],
-            policy_shape=MODEL['shape'])
+            policy_shape=MODEL['shape'],
+            regularization_scale=MODEL['regularization_scale']
+        )
 
         self.game = Game(h)
         self.ai = learn.Estimator(

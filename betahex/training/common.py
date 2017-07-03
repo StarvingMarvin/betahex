@@ -49,9 +49,10 @@ def make_train_model(feat, *,
                      invalid_penal_weight=1e-4,
                      learning_rate=3e-3,
                      learn_rate_decay=.98,
-                     optimizer="Adam"):
+                     optimizer="Adam",
+                     regularization_scale=None):
     policy_shape = policy_shape or [2, 3, -0.5, 2]
-    p = make_policy(feat, policy_filters, policy_shape)
+    p = make_policy(feat, policy_filters, policy_shape, reg_scale=regularization_scale)
 
     def train_model(x, y, mode):
         activation, logits = p(x, mode)

@@ -60,16 +60,17 @@ def main(unused_argv):
         policy_filters=MODEL['filters'],
         policy_shape=MODEL['shape'],
         invalid_penal_weight=1e-5,
-        learning_rate=3e-3,
-        learn_rate_decay=.96,
-        optimizer="Adam"
+        learning_rate=4e-3,
+        learn_rate_decay=.92,
+        optimizer="Adam",
+        regularization_scale=MODEL['regularization_scale']
     )
 
     config = learn.RunConfig(save_checkpoints_secs=60)
 
     est = learn.Estimator(
         model_fn=model_fn,
-        model_dir="data/tf/models/supervised/%s-1e-5-penal-1-0-l3e-3d.96adamIII" % MODEL['name'],
+        model_dir="data/tf/models/supervised/%s-p1e-5-l4e-3-d.92adam" % MODEL['name'],
         config=config
     )
 

@@ -4,20 +4,26 @@ import tensorflow as tf
 from tensorflow.contrib.learn.python import learn
 
 
-def conv_layer(x, filters, size, activation, name=None, bias=True):
+def conv_layer(x, filters, size, activation, name=None, bias=True, reg_scale=None):
+
+    reg = None if reg_scale is None else tf.contrib.layers.l2_regularizer(scale=reg_scale)
     conv = tf.layers.conv2d(
         x, filters, size, activation=activation, padding='same', use_bias=bias,
-        name=name, kernel_initializer=tf.random_normal_initializer()
+        name=name, kernel_initializer=tf.random_normal_initializer(),
+        kernel_regularizer=reg, bias_regularizer=reg
     )
     return conv
 
 
-def common_model(features, *, filter_count=None, groups=None):
+def common_model(features, *, filter_count=None, groups=None, reg_scale=None):
 
     def model(input, mode):
         tensors = [input[feat] for feat in features.feature_names]
         mangled = tf.cast(tf.concat(tensors, 3), tf.float32)
-        prev = conv_layer(mangled, filter_count, 5, tf.nn.relu, "5-filter-conv-input", True)
+        prev = conv_layer(
+            mangled, filter_count, 5, tf.nn.relu, "5-filter-conv-input",
+            bias=True, reg_scale=reg_scale
+        )
 
         head = groups[:-1]
         tail = groups[-1]
@@ -29,14 +35,19 @@ def common_model(features, *, filter_count=None, groups=None):
                 prev = tf.layers.dropout(prev, rate=-group, training=training)
             else:
                 for i in range(group):
-                    fc = 2 * filter_count if i == 0 else filter_count
-                    prev = conv_layer(prev, fc, 3, tf.nn.relu, "3-filter-conv-g{}-{}".format(g, i), True)
+                    # fc = 2 * filter_count if i == 0 else filter_count
+                    # rs = reg_scale / 2.0 if i == group - 1 else reg_scale
+                    fc = filter_count
+                    rs = reg_scale
+                    prev = conv_layer(prev, fc, 3, tf.nn.relu, "3-filter-conv-g{}-{}".format(g, i),
+                                      bias=True, reg_scale=rs)
                 prev = tf.layers.batch_normalization(
                     prev, axis=3, training=training, name="batch_norm-g{}".format(g)
                 )
 
         for i in range(tail):
-            prev = conv_layer(prev, filter_count, 3, tf.nn.relu, "3-filter-conv-{}".format(i), True)
+            prev = conv_layer(prev, filter_count, 3, tf.nn.relu, "3-filter-conv-{}".format(i),
+                              bias=True, reg_scale=reg_scale)
         return prev
 
     return model
@@ -53,9 +64,14 @@ def mask_invalid(x, valid, name=None):
     return masked
 
 
-def make_policy(features, filter_count=None, groups=None):
+def make_policy(features, filter_count=None, groups=None, reg_scale=None):
 
-    common_f = common_model(features, filter_count=filter_count, groups=groups)
+    common_f = common_model(
+        features,
+        filter_count=filter_count,
+        groups=groups,
+        reg_scale=reg_scale
+    )
 
     def model(input, mode):
         common = common_f(input, mode)
@@ -75,8 +91,8 @@ def make_policy(features, filter_count=None, groups=None):
     return model
 
 
-def make_value(features, filter_count, groups):
-    common_f = common_model(features, filter_count=filter_count, groups=groups)
+def make_value(features, filter_count, groups, reg_scale=None):
+    common_f = common_model(features, filter_count=filter_count, groups=groups, reg_scale=reg_scale)
 
     def model(input, mode):
         common = common_f(input, mode)
@@ -97,8 +113,9 @@ def conf2path(filter_count, groups):
 
 
 MODEL = {
-    'name': '64f-2-3-drop-5-2-mask-x2-relu',
-    'filters': 64,
+    'name': 'dist+80f-l2rs004-2-3-drop-5-2-mask-relu',
+    'filters': 80,
     'shape': [2, 3, -0.5, 2],
-    'features': ['black', 'white', 'empty', 'recentness', 'distances', 'black_edges', 'white_edges', 'ones']
+    'features': ['black', 'white', 'empty', 'recentness', 'distances', 'black_edges', 'white_edges', 'ones'],
+    'regularization_scale': 0.004
 }
