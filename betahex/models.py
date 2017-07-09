@@ -4,7 +4,8 @@ import tensorflow as tf
 from tensorflow.contrib.learn.python import learn
 
 
-def conv_layer(x, filters, size, activation, name=None, bias=True, reg_scale=None):
+def conv_layer(x, filters, size, activation,
+               name=None, bias=True, reg_scale=None, board=None):
 
     reg = None if reg_scale is None else tf.contrib.layers.l2_regularizer(scale=reg_scale)
     conv = tf.layers.conv2d(
@@ -12,18 +13,44 @@ def conv_layer(x, filters, size, activation, name=None, bias=True, reg_scale=Non
         name=name, kernel_initializer=tf.random_normal_initializer(),
         kernel_regularizer=reg, bias_regularizer=reg
     )
+
+    if board is not None:
+        conv = conv * board
+
     return conv
+
+
+def visualize_layer(features, tensor, channels, name='layer_img', cy=8):
+    ix = features.shape[0] + 2
+    iy = features.shape[0] + 2
+
+    cx = channels // cy
+
+    img = tf.slice(tensor, (0, 0, 0, 0), (1, -1, -1, -1))
+    img = tf.reshape(img, (features.shape[0], features.shape[1], channels))
+
+    img = tf.image.resize_image_with_crop_or_pad(img, iy, ix)
+    img = tf.reshape(img, (iy, ix, cy, cx))
+    img = tf.transpose(img, (2, 0, 3, 1))
+    img = tf.reshape(img, (1, cy * iy, cx * ix, 1))
+    tf.summary.image(name, img)
 
 
 def common_model(features, *, filter_count=None, groups=None, reg_scale=None):
 
     def model(input, mode):
         tensors = [input[feat] for feat in features.feature_names]
-        mangled = tf.cast(tf.concat(tensors, 3), tf.float32)
+        mangled = tf.concat(tensors, 3)
         prev = conv_layer(
-            mangled, filter_count, 5, tf.nn.relu, "5-filter-conv-input",
-            bias=True, reg_scale=reg_scale
+            mangled, filter_count, 5, tf.nn.elu, "5-filter-conv-input",
+            bias=True, reg_scale=None
         )
+
+        board = input['ones']
+
+        viz_cnt = 0
+        visualize_layer(features, prev, filter_count, name='{:0=2}-5-filter'.format(viz_cnt))
+        viz_cnt += 1
 
         head = groups[:-1]
         tail = groups[-1]
@@ -31,23 +58,35 @@ def common_model(features, *, filter_count=None, groups=None, reg_scale=None):
         training = mode == learn.ModeKeys.TRAIN
 
         for g, group in enumerate(head):
+            fc = filter_count
             if group < 0:
                 prev = tf.layers.dropout(prev, rate=-group, training=training)
             else:
                 for i in range(group):
-                    # fc = 2 * filter_count if i == 0 else filter_count
-                    # rs = reg_scale / 2.0 if i == group - 1 else reg_scale
-                    fc = filter_count
-                    rs = reg_scale
-                    prev = conv_layer(prev, fc, 3, tf.nn.relu, "3-filter-conv-g{}-{}".format(g, i),
-                                      bias=True, reg_scale=rs)
+                    fc = filter_count // 2 if i == group - 1 else filter_count
+                    rs = reg_scale / 2
+                    prev = conv_layer(prev, fc, 3, tf.nn.elu, "3-filter-conv-g{}-{}".format(g, i),
+                                      bias=True, reg_scale=rs, board=board)
+                    visualize_layer(features, prev, fc, '{:0=2}-3-filter-{}-{}'.format(viz_cnt, g, i))
+                    viz_cnt += 1
+
+                pre_clip_min = tf.reduce_min(prev)
+                pre_clip_max = tf.reduce_max(prev)
+                tf.summary.scalar("pre-clip-min-{}".format(g), pre_clip_min)
+                tf.summary.scalar("pre-clip-max-{}".format(g), pre_clip_max)
+
                 prev = tf.layers.batch_normalization(
                     prev, axis=3, training=training, name="batch_norm-g{}".format(g)
                 )
 
+                visualize_layer(features, prev, fc, '{:0=2}-batch_norm-{}'.format(viz_cnt, g))
+                viz_cnt += 1
+
         for i in range(tail):
-            prev = conv_layer(prev, filter_count, 3, tf.nn.relu, "3-filter-conv-{}".format(i),
-                              bias=True, reg_scale=reg_scale)
+            prev = conv_layer(prev, filter_count, 3, tf.nn.elu, "3-filter-conv-{}".format(i),
+                              bias=True, reg_scale=reg_scale, board=board)
+            visualize_layer(features, prev, filter_count, "{:0=2}-3-filter-conv-{}".format(viz_cnt, i))
+            viz_cnt += 1
         return prev
 
     return model
@@ -64,6 +103,18 @@ def mask_invalid(x, valid, name=None):
     return masked
 
 
+def shift_invalid(x, valid, name=None):
+    invalid = 1 - valid
+    valid_min = tf.reduce_min(x * valid, name="valid_min")
+    invalid_max = tf.reduce_max(x * invalid, name="invalid_max")
+
+    tf.summary.scalar("valid_min", valid_min)
+    tf.summary.scalar("invalid_max", invalid_max)
+    shift = tf.maximum(invalid_max - valid_min, 0)
+    shifted = tf.subtract(x, shift * invalid, name)
+    return shifted
+
+
 def make_policy(features, filter_count=None, groups=None, reg_scale=None):
 
     common_f = common_model(
@@ -75,10 +126,22 @@ def make_policy(features, filter_count=None, groups=None, reg_scale=None):
 
     def model(input, mode):
         common = common_f(input, mode)
-        activation = conv_layer(common, 1, 1, None, "1-filter-conv-output", False)
+        board = input['ones']
+
+        step_down = conv_layer(common, 8, 3, tf.nn.elu, "step-down-8-conv", True,
+                               reg_scale=reg_scale, board=board)
+        visualize_layer(features, step_down, 8, "step-down-8-conv", cy=2)
+
+        activation = conv_layer(step_down, 1, 1, None, "1-filter-conv-output", False,
+                                reg_scale=reg_scale)
         tf.summary.image("output_activation_img", activation)
+
         valid = tf.to_float(input['empty'])
-        masked = mask_invalid(activation, valid, name="masked-output")
+
+        # masked = mask_invalid(activation, valid, name="masked-output")
+        # shift_invalid(activation, valid, name="shifted-output")
+
+        masked = activation * valid
         logits = tf.reshape(
             masked,
             [-1, features.shape[0] * features.shape[1]],
@@ -113,9 +176,9 @@ def conf2path(filter_count, groups):
 
 
 MODEL = {
-    'name': 'dist+80f-l2rs004-2-3-drop-5-2-mask-relu',
-    'filters': 80,
-    'shape': [2, 3, -0.5, 2],
+    'name': 'dist+64f-l2rs1e-2-2-3-drop-5-1-mask-elu-sd',
+    'filters': 64,
+    'shape': [2, 3, -0.5, 1],
     'features': ['black', 'white', 'empty', 'recentness', 'distances', 'black_edges', 'white_edges', 'ones'],
-    'regularization_scale': 0.004
+    'regularization_scale': 1e-2
 }

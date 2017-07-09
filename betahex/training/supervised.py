@@ -59,9 +59,9 @@ def main(unused_argv):
         feat,
         policy_filters=MODEL['filters'],
         policy_shape=MODEL['shape'],
-        invalid_penal_weight=1e-5,
-        learning_rate=4e-3,
-        learn_rate_decay=.92,
+        invalid_penal_weight=1e-6,
+        learning_rate=3e-3,
+        learn_rate_decay=.96,
         optimizer="Adam",
         regularization_scale=MODEL['regularization_scale']
     )
@@ -70,18 +70,20 @@ def main(unused_argv):
 
     est = learn.Estimator(
         model_fn=model_fn,
-        model_dir="data/tf/models/supervised/%s-p1e-5-l4e-3-d.92adam" % MODEL['name'],
+        model_dir="data/tf/models/supervised/%s-p1e-6-l3e-3-d.96adam" % MODEL['name'],
         config=config
     )
 
-    train_in = make_input_fn(feat, ["data/tf/features/train.tfrecords"], 32)
+    train_in = make_input_fn(feat, ["data/tf/features/train.tfrecords"], 64)
 
     eval_in = make_input_fn(feat, ["data/tf/features/eval.tfrecords"], 64)
 
-    for i in range(60):
+    fouls = 0
+
+    for i in range(50):
         est.fit(
             input_fn=train_in,
-            steps=3000
+            steps=2000
         )
         metrics = {
             "accuracy":
@@ -89,7 +91,10 @@ def main(unused_argv):
                     metric_fn=accuracy, prediction_key="classes")
         }
         eval_result = est.evaluate(input_fn=eval_in, metrics=metrics, steps=100)
-        if i > 2 and (eval_result['accuracy'] < 1e-2 or eval_result['loss'] > 8):
+        if eval_result['accuracy'] < 1e-2 or eval_result['loss'] > 16:
+            fouls += 1
+
+        if fouls > 3:
             break
 
 

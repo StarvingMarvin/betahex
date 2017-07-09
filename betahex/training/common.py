@@ -25,18 +25,15 @@ def draw_position(inputs, guess, target):
     tf.summary.image("position_img", img, max_outputs=6)
 
 
-def penalize_invalid(x, valid_moves, valid_board, mode,
-                     invalid_penal=1, oob_penal=0, name=None):
-    valid_min = tf.reduce_min(x * tf.to_float(valid_moves))
-    bigger_mask = tf.where(x > valid_min, tf.ones_like(x), tf.zeros_like(x))
+def penalize_invalid(x, valid_moves, board, mode):
+
     if mode == learn.ModeKeys.TRAIN:
-        oob_penal_mask = (tf.ones_like(x) - tf.to_float(valid_board)) * oob_penal
-        invalid_move_mask = (tf.ones_like(x) - tf.to_float(valid_moves)) * invalid_penal
-
-        total_mask = invalid_move_mask + oob_penal_mask
-        penals = (x - valid_min) * total_mask * bigger_mask
-
-        penal = tf.reduce_mean(penals, name=name)
+        invalid = (1 - valid_moves) * board
+        valid_min = tf.reduce_min(x * valid_moves)
+        invalid_max = tf.reduce_max(x * invalid)
+        tf.summary.scalar("valid_min", valid_min)
+        tf.summary.scalar("invalid_max", invalid_max)
+        penal = tf.maximum(invalid_max - valid_min, 0)
         tf.summary.scalar('invalid_penal', penal)
     else:
         penal = tf.zeros([1])
