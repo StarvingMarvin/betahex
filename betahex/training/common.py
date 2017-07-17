@@ -25,15 +25,61 @@ def draw_position(inputs, guess, target):
     tf.summary.image("position_img", img, max_outputs=6)
 
 
-def penalize_invalid(x, valid_moves, board, mode):
+def accuracy(labels, predictions, weights=None, metrics_collections=None,
+             updates_collections=None, name=None):
+    return tf.metrics.accuracy(
+        tf.argmax(labels, axis=1), predictions, weights,
+        metrics_collections, updates_collections, name
+    )
 
+
+def make_policy_input_fn(feat, data, batch_size, epochs=None):
+
+    input_features = set(
+        [tf.contrib.layers.real_valued_column(
+            f, dtype=tf.float32, dimension=feat.dimension(f)
+        )
+         for f in feat.feature_names]
+    )
+
+    input_features.add(
+        tf.contrib.layers.real_valued_column(
+            'y', dtype=tf.int64, dimension=feat.surface()
+        )
+    )
+
+    features = tf.contrib.layers.create_feature_spec_for_parsing(input_features)
+    options = tf.python_io.TFRecordOptions(tf.python_io.TFRecordCompressionType.GZIP)
+
+    def input_fn():
+        feature_map = tf.contrib.learn.read_batch_features(
+            file_pattern=data,
+            batch_size=batch_size,
+            features=features,
+            reader=lambda: tf.TFRecordReader(options=options),
+            num_epochs=epochs
+        )
+
+        target = feature_map.pop("y")
+
+        fm = {k: tf.reshape(v, (-1, ) + feat.feature_shape(k)) for k, v in feature_map.items()}
+        return fm, target
+
+    return input_fn
+
+
+def penalize_invalid(x, valid_moves, valid_board, mode,
+                     invalid_penal=1, oob_penal=0, name=None):
+    valid_min = tf.reduce_min(x * tf.to_float(valid_moves))
+    bigger_mask = tf.where(x > valid_min, tf.ones_like(x), tf.zeros_like(x))
     if mode == learn.ModeKeys.TRAIN:
-        invalid = (1 - valid_moves) * board
-        valid_min = tf.reduce_min(x * valid_moves)
-        invalid_max = tf.reduce_max(x * invalid)
-        tf.summary.scalar("valid_min", valid_min)
-        tf.summary.scalar("invalid_max", invalid_max)
-        penal = tf.maximum(invalid_max - valid_min, 0)
+        oob_penal_mask = (tf.ones_like(x) - tf.to_float(valid_board)) * oob_penal
+        invalid_move_mask = (tf.ones_like(x) - tf.to_float(valid_moves)) * invalid_penal
+
+        total_mask = invalid_move_mask + oob_penal_mask
+        penals = (x - valid_min) * total_mask * bigger_mask
+
+        penal = tf.reduce_mean(penals, name=name)
         tf.summary.scalar('invalid_penal', penal)
     else:
         penal = tf.zeros([1])
@@ -43,7 +89,6 @@ def penalize_invalid(x, valid_moves, board, mode):
 def make_train_model(feat, *,
                      policy_filters=64,
                      policy_shape=None,
-                     invalid_penal_weight=1e-4,
                      learning_rate=3e-3,
                      learn_rate_decay=.98,
                      optimizer="Adam",
@@ -54,19 +99,20 @@ def make_train_model(feat, *,
     def train_model(x, y, mode):
         activation, logits = p(x, mode)
 
-        loss = None
         train_op = None
 
         first_guess = tf.argmax(input=logits, axis=1, name="guessed_move")
         probabilities = tf.nn.softmax(logits, name="move_probabilities")
 
+        loss = None
+
         # Calculate Loss (for both TRAIN and EVAL modes)
         if mode != learn.ModeKeys.INFER:
-            xent = tf.losses.softmax_cross_entropy(
+            loss = tf.losses.softmax_cross_entropy(
                 onehot_labels=y, logits=logits)
 
-            penal = penalize_invalid(activation, x['empty'], x['ones'], mode)
-            loss = xent + invalid_penal_weight * penal
+            tf.summary.image("probabilities_img", tf.reshape(probabilities, [-1, 19, 13, 1]), max_outputs=6)
+            draw_position(x, first_guess, y)
 
         # Configure the Training Op (for TRAIN mode)
         if mode == learn.ModeKeys.TRAIN:
@@ -77,17 +123,12 @@ def make_train_model(feat, *,
                 optimizer=optimizer,
                 learning_rate_decay_fn=lambda lr, step: tf.train.exponential_decay(
                     lr, step, 10000, learn_rate_decay
-                )
+                ),
+                summaries=['learning_rate', 'loss']
             )
 
-            # pictures and stats
-            tf.summary.image("probabilities_img", tf.reshape(probabilities, [-1, 19, 13, 1]), max_outputs=6)
-            draw_position(x, first_guess, y)
             accrcy = tf.reduce_mean(tf.to_float(tf.equal(first_guess, tf.argmax(y, axis=1))))
             tf.summary.scalar("train_accuracy", accrcy)
-            target = tf.argmax(input=y, axis=1, name="actual_move")
-            tf.summary.histogram("guess", first_guess)
-            tf.summary.histogram("target", target)
 
         # Generate Predictions
         predictions = {
