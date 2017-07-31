@@ -175,7 +175,7 @@ class Features:
         )
 
     def input_map(self, board):
-        return self.split(np.asarray(self.input_vector(board), np.int8))
+        return self.split(np.asarray(self.input_vector(board), np.float32))
 
     def input_example(self, board, move):
         feat_map = {

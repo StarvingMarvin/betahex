@@ -69,6 +69,13 @@ class Move:
             'swap' if self.special else None
         )
 
+    def __sgf__(self):
+        return "{}[{}{}]".format(
+            'B' if self.color == Move.B else 'W',
+            chr(ord('a') + self.x),
+            self.y + 1
+        )
+
 
 def color(c):
     return Move.B if c[0].upper() == 'B' else Move.W
@@ -228,6 +235,9 @@ class Game:
     def play_swap_sides(self):
         # TODO: check if move #2
         self._move(Move.make_special_move(self.next_color, self.move_number() + 1, Move.SWAP_SIDES))
+
+    def winner(self):
+        return victory(self.board)
 
     def _move(self, move):
         self.moves.append(move)
