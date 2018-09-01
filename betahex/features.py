@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 import sys
 
-from collections import OrderedDict
 from functools import wraps
 
 from betahex.game import Move, distances as dist
@@ -149,7 +148,7 @@ def distances(board):
     )
 
 
-FEATURES = OrderedDict()
+FEATURES = {}
 
 for name in sorted(dir(sys.modules[__name__])):
     f = getattr(sys.modules[__name__], name)

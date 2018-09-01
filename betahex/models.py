@@ -1,17 +1,14 @@
 from io import StringIO
 
 import tensorflow as tf
-from tensorflow.contrib.learn.python import learn
 
 
 def conv_layer(x, filters, size, activation,
-               name=None, bias=True, reg_scale=None, board=None):
+               name=None, bias=True, board=None):
 
-    reg = None if reg_scale is None else tf.contrib.layers.l2_regularizer(scale=reg_scale)
     conv = tf.layers.conv2d(
         x, filters, size, activation=activation, padding='same', use_bias=bias,
-        name=name, kernel_initializer=tf.random_normal_initializer(),
-        kernel_regularizer=reg, bias_regularizer=reg
+        name=name, kernel_initializer=tf.random_normal_initializer()
     )
 
     if board is not None:
@@ -36,14 +33,14 @@ def visualize_layer(features, tensor, channels, name='layer_img', cy=8):
     tf.summary.image(name, img)
 
 
-def common_model(features, *, filter_count=None, groups=None, reg_scale=None):
+def common_model(features, *, filter_count=None, groups=None):
 
     def model(input, mode):
         tensors = [input[feat] for feat in features.feature_names]
         mangled = tf.concat(tensors, 3)
         prev = conv_layer(
             mangled, filter_count, 5, tf.nn.relu, "5-filter-conv-input",
-            bias=True, reg_scale=None
+            bias=True
         )
 
         board = input['ones']
@@ -53,9 +50,8 @@ def common_model(features, *, filter_count=None, groups=None, reg_scale=None):
         head = groups[:-1]
         tail = groups[-1]
 
-        training = mode == learn.ModeKeys.TRAIN
+        training = mode == tf.estimator.ModeKeys.TRAIN
         fc = filter_count
-        rs = reg_scale
 
         for g, group in enumerate(head):
             if group < 0:
@@ -68,16 +64,16 @@ def common_model(features, *, filter_count=None, groups=None, reg_scale=None):
             elif 0 < group < 1:
                 fc = int(filter_count * group)
                 prev = conv_layer(prev, fc, 3, tf.nn.relu, "3-filter-conv-{}-g{}".format(fc, g),
-                                  bias=False, reg_scale=rs, board=board)
+                                  bias=False, board=board)
             else:
                 for i in range(group):
                     fc = filter_count
                     prev = conv_layer(prev, fc, 3, tf.nn.relu, "3-filter-conv-g{}-{}".format(g, i),
-                                      bias=False, reg_scale=rs, board=board)
+                                      bias=False, board=board)
 
         for i in range(tail):
             prev = conv_layer(prev, filter_count, 3, tf.nn.relu, "3-filter-conv-{}".format(i),
-                              bias=True, reg_scale=rs, board=board)
+                              bias=True, board=board)
             visualize_layer(features, prev, filter_count, "{:0=2}-3-filter-conv-{}".format(viz_cnt, i))
             viz_cnt += 1
         return prev
@@ -123,13 +119,12 @@ def skew(out, features):
     return batch_first
 
 
-def make_policy(features, filter_count=None, groups=None, reg_scale=None):
+def make_policy(features, filter_count=None, groups=None):
 
     common_f = common_model(
         features,
         filter_count=filter_count,
-        groups=groups,
-        reg_scale=reg_scale
+        groups=groups
     )
 
     def model(input, mode):
@@ -137,8 +132,7 @@ def make_policy(features, filter_count=None, groups=None, reg_scale=None):
 
         drop = tf.layers.dropout(common, (filter_count - 1.5) / filter_count)
 
-        activation = conv_layer(drop, 1, 1, None, "1-filter-conv-output", True,
-                                reg_scale=reg_scale)
+        activation = conv_layer(drop, 1, 1, None, "1-filter-conv-output", True)
 
         tf.summary.image("output_activation_img", activation)
 
@@ -157,8 +151,8 @@ def make_policy(features, filter_count=None, groups=None, reg_scale=None):
     return model
 
 
-def make_value(features, filter_count, groups, reg_scale=None):
-    common_f = common_model(features, filter_count=filter_count, groups=groups, reg_scale=reg_scale)
+def make_value(features, filter_count, groups):
+    common_f = common_model(features, filter_count=filter_count, groups=groups)
 
     def model(input, mode):
         common = common_f(input, mode)

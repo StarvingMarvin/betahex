@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tensorflow.contrib import learn
 
 from betahex.features import Features
 from betahex.training.common import make_train_model, make_policy_input_fn, accuracy
@@ -23,13 +22,13 @@ def main(unused_argv):
         regularization_scale=MODEL['regularization_scale']
     )
 
-    config = learn.RunConfig(
+    config = tf.estimator.RunConfig(
         save_checkpoints_steps=1000,
         save_checkpoints_secs=None,
         save_summary_steps=100
     )
 
-    est = learn.Estimator(
+    est = tf.estimator.Estimator(
         model_fn=model_fn,
         model_dir="data/tf/models/supervised/%s-l2e-3-d.98adam" % MODEL['name'],
         config=config
@@ -42,7 +41,7 @@ def main(unused_argv):
     fouls = 0
 
     for i in range(40):
-        est.fit(
+        est.train(
             input_fn=train_in,
             steps=2000
         )

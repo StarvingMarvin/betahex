@@ -1,7 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib import learn
-from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
 
 from betahex.models import make_policy
 
@@ -72,7 +70,7 @@ def penalize_invalid(x, valid_moves, valid_board, mode,
                      invalid_penal=1, oob_penal=0, name=None):
     valid_min = tf.reduce_min(x * tf.to_float(valid_moves))
     bigger_mask = tf.where(x > valid_min, tf.ones_like(x), tf.zeros_like(x))
-    if mode == learn.ModeKeys.TRAIN:
+    if mode == tf.estimator.ModeKeys.TRAIN:
         oob_penal_mask = (tf.ones_like(x) - tf.to_float(valid_board)) * oob_penal
         invalid_move_mask = (tf.ones_like(x) - tf.to_float(valid_moves)) * invalid_penal
 
@@ -91,10 +89,9 @@ def make_train_model(feat, *,
                      policy_shape=None,
                      learning_rate=3e-3,
                      learn_rate_decay=.98,
-                     optimizer="Adam",
-                     regularization_scale=None):
+                     optimizer="Adam"):
     policy_shape = policy_shape or [2, 3, -0.5, 2]
-    p = make_policy(feat, policy_filters, policy_shape, reg_scale=regularization_scale)
+    p = make_policy(feat, policy_filters, policy_shape)
 
     def train_model(x, y, mode):
         activation, logits = p(x, mode)
@@ -107,7 +104,7 @@ def make_train_model(feat, *,
         loss = None
 
         # Calculate Loss (for both TRAIN and EVAL modes)
-        if mode != learn.ModeKeys.INFER:
+        if mode != tf.estimator.ModeKeys.PREDICT:
             loss = tf.losses.softmax_cross_entropy(
                 onehot_labels=y, logits=logits)
 
@@ -115,7 +112,7 @@ def make_train_model(feat, *,
             draw_position(x, first_guess, y)
 
         # Configure the Training Op (for TRAIN mode)
-        if mode == learn.ModeKeys.TRAIN:
+        if mode == tf.estimator.ModeKeys.TRAIN:
             train_op = tf.contrib.layers.optimize_loss(
                 loss=loss,
                 global_step=tf.contrib.framework.get_global_step(),
