@@ -20,13 +20,18 @@ def conv_layer(x, filters, size, activation,
     return conv
 
 
-def visualize_layer(features, tensor, channels, name='layer_img', cy=8):
+def visualize_layer(features, tensor, channels, name='layer_img', cy=8, ln=False):
     ix = features.shape[0] + 2
     iy = features.shape[0] + 2
 
     cx = channels // cy
 
     img = tf.slice(tensor, (0, 0, 0, 0), (1, -1, -1, -1))
+
+    if ln:
+        min_val = tf.reduce_min(img)
+        img = tf.log(img - tf.minimum(min_val, 1) + 1)
+
     img = tf.reshape(img, (features.shape[0], features.shape[1], channels))
 
     img = tf.image.resize_image_with_crop_or_pad(img, iy, ix)
@@ -78,7 +83,8 @@ def common_model(features, *, filter_count=None, groups=None, reg_scale=None):
         for i in range(tail):
             prev = conv_layer(prev, filter_count, 3, tf.nn.relu, "3-filter-conv-{}".format(i),
                               bias=True, reg_scale=rs, board=board)
-            visualize_layer(features, prev, filter_count, "{:0=2}-3-filter-conv-{}".format(viz_cnt, i))
+            visualize_layer(features, prev, filter_count,
+                            "{:0=2}-3-filter-conv-{}".format(viz_cnt, i), ln=True)
             viz_cnt += 1
         return prev
 
@@ -135,7 +141,7 @@ def make_policy(features, filter_count=None, groups=None, reg_scale=None):
     def model(input, mode):
         common = common_f(input, mode)
 
-        drop = tf.layers.dropout(common, (filter_count - 1.5) / filter_count)
+        drop = tf.layers.dropout(common, 0.95)
 
         activation = conv_layer(drop, 1, 1, None, "1-filter-conv-output", True,
                                 reg_scale=reg_scale)
@@ -178,10 +184,16 @@ def conf2path(filter_count, groups):
     return str(buf)
 
 
+def drops(ds):
+    ret = []
+    for d in ds:
+        ret.extend([1, 0, -d])
+    return ret
+
 MODEL = {
-    'name': '72f-relu-(1-bn-drop2)x4-1-drop-but1.5',
-    'filters': 72,
-    'shape': [1, 0, -0.2] * 4 + [1],
+    'name': '80f-relu-(1-bn-drop)x-drop1.2.1.4.1-1-drop95',
+    'filters': 80,
+    'shape': drops([.1, .2, .1, .4, .1]) + [1],
     'features': ['black', 'white', 'empty', 'recentness', 'distances', 'black_edges', 'white_edges', 'ones'],
     'regularization_scale': None
 }

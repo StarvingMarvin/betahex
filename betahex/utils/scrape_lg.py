@@ -124,7 +124,7 @@ def page2sgf(page, sgf):
 
 
 def scrape_lg(datadir='data'):
-    tournaments = ['hex.ch.{}.{}.{}'.format(i, j, k) for i, in range(10, 38) for j, k in [(1, 1), (1, 2), (2, 2)]]
+    tournaments = ['hex.ch.{}.{}.{}'.format(i, j, k) for i, in range(10, 42) for j, k in [(1, 1), (1, 2), (2, 2)]]
     download_tournaments(tournaments, datadir + '/tournaments')
     ch_players = get_players_from_tournaments(glob.glob(datadir + '/tournaments/hex.ch.*.html'))
     top_players = get_players_from_top(glob.glob('tournaments/top-*.html'))
